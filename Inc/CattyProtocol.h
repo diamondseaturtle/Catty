@@ -13,6 +13,7 @@ typedef unsigned long long RoomID;
 
 std::unordered_map<RoomID, std::shared_ptr<CattyRoom>> AllRooms;
 std::unordered_map<UserID, std::shared_ptr<CattyUser>> AllUsers;
+std::unordered_map<SOCKET, CattyConnection >> AllConnections;
 
 class CattyConnection {
 	SOCKET Sock;
