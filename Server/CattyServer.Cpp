@@ -212,7 +212,7 @@ int main(int argc, char* argv[]) {
 				// associated key data.  Also the global list of context structures
 				// (the key data) gets added to a global list.
 				//
-				lpPerSocketContext = UpdateCompletionPort(sdAccept, ClientIoRead, TRUE, -1);
+				lpPerSocketContext = UpdateCompletionPort(sdAccept, TRUE);
 				if (lpPerSocketContext == NULL)
 					__leave;
 
@@ -228,9 +228,17 @@ int main(int argc, char* argv[]) {
 				//
 				// post initial receive on this socket
 				//
-				nRet = WSARecv(sdAccept, &(lpPerSocketContext->pIOContext->wsabuf),
+				PPER_IO_CONTEXT pIOContext = AllocIOContext(lpPerSocketContext);
+				
+				if (pIOContext == NULL) {
+					__leave;
+				}
+				pIOContext->IOOperation = ClientIoRead; 
+				pIOContext->wsabuf.buf = (char*) &(pIOContext->InBufSize);
+				pIOContext->wsabuf.len = sizeof(pIOContext->InBufSize);
+				nRet = WSARecv(sdAccept, &(pIOContext->wsabuf),
 					1, &dwRecvNumBytes, &dwFlags,
-					&(lpPerSocketContext->pIOContext->Overlapped), NULL);
+					&(pIOContext->Overlapped), NULL);
 				if (nRet == SOCKET_ERROR && (ERROR_IO_PENDING != WSAGetLastError())) {
 					myprintf("WSARecv() Failed: %d\n", WSAGetLastError());
 					CloseClient(lpPerSocketContext, FALSE);
@@ -545,29 +553,38 @@ DWORD WINAPI WorkerThread(LPVOID WorkThreadContext) {
 
 			if (lpIOContext->IoContextType.Type.TcpMarker) {
 				assert(dwIoSize == 4);
-				unsigned int PayloadSize = ntohl(*((unsigned int*)lpIOContext->Buffer));
-				SOCKET Sock = lpPerSocketContext->Socket;
-				PPER_SOCKET_CONTEXT NewContext = UpdateCompletionPort(Sock, ClientIoRead, TRUE, PayloadSize);
-
-				if (NewContext == NULL) {
+				unsigned int PayloadSize = ntohl(lpIOContext->InBufSize);
+				if (PayloadSize > 8 * MB) {
 					CloseClient(lpPerSocketContext, FALSE);
 				}
 				else {
-					NewContext->pIOContext->IOOperation = ClientIoRead;
-					NewContext->pIOContext->nTotalBytes = 0;
-					NewContext->pIOContext->nSentBytes = 0;
-					NewContext->pIOContext->wsabuf.len = PayloadSize;
-					dwFlags = MSG_WAITALL;
+					SOCKET Sock = lpPerSocketContext->Socket;
+					lpIOContext->InBuffer = (char*)xmalloc(PayloadSize);
 
-					CtxtListDeleteFrom(lpPerSocketContext);
-
-					nRet = WSARecv(Sock, &(NewContext->pIOContext->wsabuf),
-						1, &dwRecvNumBytes, &dwFlags,
-						&(NewContext->pIOContext->Overlapped), NULL);
-					if (nRet == SOCKET_ERROR && (ERROR_IO_PENDING != WSAGetLastError())) {
-						myprintf("WSARecv() Failed: %d\n", WSAGetLastError());
-						CloseClient(NewContext, FALSE);
+					if (lpIOContext->InBuffer == NULL) {
+						CloseClient(lpPerSocketContext, FALSE);
 					}
+					else {
+						lpIOContext->IOOperation = ClientIoRead;
+						lpIOContext->nTotalBytes = 0;
+						lpIOContext->nSentBytes = 0;
+						lpIOContext->wsabuf.len = PayloadSize;
+						lpIOContext->wsabuf.buf = lpIOContext->InBuffer;
+						lpIOContext->IoContextType.Type.TcpMarker = false;
+						dwFlags = MSG_WAITALL;
+
+
+
+						nRet = WSARecv(Sock, &(lpIOContext->wsabuf),
+							1, &dwRecvNumBytes, &dwFlags,
+							&(lpIOContext->Overlapped), NULL);
+						if (nRet == SOCKET_ERROR && (ERROR_IO_PENDING != WSAGetLastError())) {
+							myprintf("WSARecv() Failed: %d\n", WSAGetLastError());
+							CloseClient(lpPerSocketContext, FALSE);
+
+						}
+					}
+
 				}
 
 
@@ -588,7 +605,7 @@ DWORD WINAPI WorkerThread(LPVOID WorkThreadContext) {
 
 			break;
 
-		case ClientIoWrite:
+		/*case ClientIoWrite:
 
 			//
 			// a write operation has completed, determine if all the data intended to be
@@ -638,7 +655,7 @@ DWORD WINAPI WorkerThread(LPVOID WorkThreadContext) {
 				}
 			}
 			break;
-
+			*/
 		} //switch
 	} //while
 	return(0);
@@ -649,13 +666,12 @@ DWORD WINAPI WorkerThread(LPVOID WorkThreadContext) {
 //  Additionally, add the context structure to the global list of context structures.
 //  Negative AdditionalSize is TCP Marker processing
 //
-PPER_SOCKET_CONTEXT UpdateCompletionPort(SOCKET sd, IO_OPERATION ClientIo,
-	BOOL bAddToList, unsigned int AdditionalSize) {
+PPER_SOCKET_CONTEXT UpdateCompletionPort(SOCKET sd, BOOL bAddToList) {
 
 	PPER_SOCKET_CONTEXT lpPerSocketContext;
 
 
-	lpPerSocketContext = CtxtAllocate(sd, ClientIo, AdditionalSize);
+	lpPerSocketContext = CtxtAllocate(sd);
 	if (lpPerSocketContext == NULL)
 		return(NULL);
 
@@ -731,7 +747,7 @@ VOID CloseClient(PPER_SOCKET_CONTEXT lpPerSocketContext,
 //
 // Allocate a socket context for the new connection.  
 //
-PPER_SOCKET_CONTEXT CtxtAllocate(SOCKET sd, IO_OPERATION ClientIO, unsigned int AdditionalSize) {
+PPER_SOCKET_CONTEXT CtxtAllocate(SOCKET sd) {
 
 	PPER_SOCKET_CONTEXT lpPerSocketContext;
 
@@ -747,41 +763,9 @@ PPER_SOCKET_CONTEXT CtxtAllocate(SOCKET sd, IO_OPERATION ClientIO, unsigned int 
 
 	lpPerSocketContext = (PPER_SOCKET_CONTEXT)xmalloc(sizeof(PER_SOCKET_CONTEXT));
 	if (lpPerSocketContext) {
-		lpPerSocketContext->pIOContext = (PPER_IO_CONTEXT)xmalloc(sizeof(PER_IO_CONTEXT));
-		if (lpPerSocketContext->pIOContext) {
-			lpPerSocketContext->Socket = sd;
-			lpPerSocketContext->pCtxtBack = NULL;
-			lpPerSocketContext->pCtxtForward = NULL;
-
-			lpPerSocketContext->pIOContext->Overlapped.Internal = 0;
-			lpPerSocketContext->pIOContext->Overlapped.InternalHigh = 0;
-			lpPerSocketContext->pIOContext->Overlapped.Offset = 0;
-			lpPerSocketContext->pIOContext->Overlapped.OffsetHigh = 0;
-			lpPerSocketContext->pIOContext->Overlapped.hEvent = NULL;
-			lpPerSocketContext->pIOContext->IOOperation = ClientIO;
-			lpPerSocketContext->pIOContext->pIOContextForward = NULL;
-			lpPerSocketContext->pIOContext->nTotalBytes = 0;
-			lpPerSocketContext->pIOContext->nSentBytes = 0;
-
-			if (AdditionalSize < 0) {
-				lpPerSocketContext->pIOContext->IoContextType.Type.TcpMarker = true;
-				lpPerSocketContext->pIOContext->wsabuf.len = 4;
-			}
-			else {
-				lpPerSocketContext->pIOContext->IoContextType.Type.TcpMarker = false;
-				lpPerSocketContext->pIOContext->wsabuf.len = AdditionalSize;
-			}
-
-			lpPerSocketContext->pIOContext->wsabuf.buf = lpPerSocketContext->pIOContext->Buffer;
-
-
-			ZeroMemory(lpPerSocketContext->pIOContext->wsabuf.buf, lpPerSocketContext->pIOContext->wsabuf.len);
-		}
-		else {
-			xfree(lpPerSocketContext);
-			myprintf("HeapAlloc() PER_IO_CONTEXT failed: %d\n", GetLastError());
-		}
-
+		lpPerSocketContext->Socket = sd;
+		lpPerSocketContext->pCtxtBack = NULL;
+		lpPerSocketContext->pCtxtForward = NULL;
 	}
 	else {
 		myprintf("HeapAlloc() PER_SOCKET_CONTEXT failed: %d\n", GetLastError());
@@ -790,6 +774,30 @@ PPER_SOCKET_CONTEXT CtxtAllocate(SOCKET sd, IO_OPERATION ClientIO, unsigned int 
 	LeaveCriticalSection(&g_CriticalSection);
 
 	return(lpPerSocketContext);
+}
+
+PPER_IO_CONTEXT AllocIOContext(PPER_SOCKET_CONTEXT Connection) {
+	PPER_IO_CONTEXT pIOContext = (PPER_IO_CONTEXT)xmalloc(sizeof(PER_IO_CONTEXT));
+	if (pIOContext) {
+		pIOContext->Overlapped.Internal = 0;
+		pIOContext->Overlapped.InternalHigh = 0;
+		pIOContext->Overlapped.Offset = 0;
+		pIOContext->Overlapped.OffsetHigh = 0;
+		pIOContext->Overlapped.hEvent = NULL;
+		pIOContext->IOOperation = ClientIoAccept;
+		pIOContext->pIOContextForward = NULL;
+		pIOContext->nTotalBytes = 0;
+		pIOContext->nSentBytes = 0;
+		pIOContext->IoContextType.Type.TcpMarker = true;
+		pIOContext->wsabuf.len = 4;
+		pIOContext->wsabuf.buf = NULL;
+		pIOContext->InBuffer = NULL; 
+		pIOContext->InBufSize = 0; 
+		pIOContext->OutBuffer = NULL; 
+		pIOContext->OutBufSize = 0;
+		pIOContext->pConnection = Connection;
+	}
+	return pIOContext;
 }
 
 //

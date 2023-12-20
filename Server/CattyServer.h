@@ -16,12 +16,16 @@
 #define DEFAULT_PORT  "5001";
 #define MAX_BUFF_SIZE       8192
 #define MAX_WORKER_THREAD   16
+#define KB 1024
+#define MB (1024 * KB)
 
 typedef enum _IO_OPERATION {
     ClientIoAccept,
     ClientIoRead,
     ClientIoWrite
 } IO_OPERATION, * PIO_OPERATION;
+
+struct _PER_SOCKET_CONTEXT;
 
 //
 // data to be associated for every I/O operation on a socket
@@ -33,7 +37,7 @@ typedef struct _PER_IO_CONTEXT {
     int                         nTotalBytes;
     int                         nSentBytes;
     IO_OPERATION                IOOperation;
-    SOCKET                      SocketAccept;
+    //SOCKET                      SocketAccept;
     union {
         struct {
             bool    TcpMarker : 1;
@@ -42,7 +46,11 @@ typedef struct _PER_IO_CONTEXT {
     } IoContextType;
 
     struct _PER_IO_CONTEXT* pIOContextForward;
-    char                        Buffer[4];
+    struct _PER_SOCKET_CONTEXT* pConnection; //connection
+    unsigned int                InBufSize;
+    unsigned int OutBufSize;
+    char* InBuffer;
+    char* OutBuffer;
 } PER_IO_CONTEXT, * PPER_IO_CONTEXT;
 
 //
@@ -57,12 +65,15 @@ typedef struct _PER_IO_CONTEXT {
 typedef struct _PER_SOCKET_CONTEXT {
     SOCKET                      Socket;
 
-    LPFN_ACCEPTEX               fnAcceptEx;
+    //LPFN_ACCEPTEX               fnAcceptEx;
 
     //
     //linked list for all outstanding i/o on the socket
     //
     PPER_IO_CONTEXT             pIOContext;
+    sockaddr LocalAddr;
+    sockaddr RemoteAddr;
+    int Status;
     struct _PER_SOCKET_CONTEXT* pCtxtBack;
     struct _PER_SOCKET_CONTEXT* pCtxtForward;
 } PER_SOCKET_CONTEXT, * PPER_SOCKET_CONTEXT;
@@ -85,9 +96,7 @@ DWORD WINAPI WorkerThread(
 
 PPER_SOCKET_CONTEXT UpdateCompletionPort(
     SOCKET s,
-    IO_OPERATION ClientIo,
-    BOOL bAddToList,
-    unsigned int AdditionalSize
+    BOOL bAddToList
 );
 //
 // bAddToList is FALSE for listening socket, and TRUE for connection sockets.
@@ -95,15 +104,15 @@ PPER_SOCKET_CONTEXT UpdateCompletionPort(
 // don't need to add it to the list.
 //
 
+PPER_IO_CONTEXT AllocIOContext(PPER_SOCKET_CONTEXT Connection);
+
 VOID CloseClient(
     PPER_SOCKET_CONTEXT lpPerSocketContext,
     BOOL bGraceful
 );
 
 PPER_SOCKET_CONTEXT CtxtAllocate(
-    SOCKET s,
-    IO_OPERATION ClientIO,
-    unsigned int AdditionalSize
+    SOCKET s
 );
 
 VOID CtxtListFree(

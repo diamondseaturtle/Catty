@@ -64,7 +64,7 @@ class MessageHeader {
 };
 
 class SendMessageReq : MessageHeader {
-	UserID ReceiverID // null means send to everyone 
+	UserID ReceiverID; // null means send to everyone 
 	std::string MessageBody; // utf8 encoded
 };
 
@@ -74,7 +74,7 @@ class SendMessageRes : MessageHeader {
 
 class JoinRoomReq : MessageHeader {
 	RoomID RoomToJoin;
-	str::string UserName;
+	std::string UserName;
 };
 
 class JoinRoomRes : MessageHeader {

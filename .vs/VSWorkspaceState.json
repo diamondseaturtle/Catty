@@ -1,9 +1,9 @@
 {
   "ExpandedNodes": [
     "",
-    "\\CattyServer",
-    "\\Inc"
+    "\\Inc",
+    "\\Server"
   ],
-  "SelectedNode": "\\CattyServer\\CattyServer.sln",
+  "SelectedNode": "\\Server\\Debug",
   "PreviewInSolutionExplorer": false
 }
