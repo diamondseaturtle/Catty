@@ -92,7 +92,9 @@
 #include <strsafe.h>
 #include <assert.h>
 
+#include "..\Inc\CattyProtocol.h"
 #include "CattyServer.h"
+
 
 char* g_Port = DEFAULT_PORT;
 BOOL g_bEndServer = FALSE;			// set to TRUE on CTRL-C
@@ -589,8 +591,16 @@ DWORD WINAPI WorkerThread(LPVOID WorkThreadContext) {
 
 
 
-			} /* else { //handle command execution
-				nRet = WSASend(lpPerSocketContext->Socket, &lpIOContext->wsabuf, 1,
+			} else { //handle command execution
+				int Result = DecodeIOContext(lpIOContext);
+				if (Result == 0) {
+					Result = ProcessIOContext(lpIOContext);
+				}
+
+				if (Result != 0) {
+					CloseClient(lpPerSocketContext, FALSE);
+				}
+				/*nRet = WSASend(lpPerSocketContext->Socket, &lpIOContext->wsabuf, 1,
 					&dwSendNumBytes, dwFlags, &(lpIOContext->Overlapped), NULL);
 				if (nRet == SOCKET_ERROR && (ERROR_IO_PENDING != WSAGetLastError())) {
 					myprintf("WSASend() failed: %d\n", WSAGetLastError());
@@ -599,8 +609,8 @@ DWORD WINAPI WorkerThread(LPVOID WorkThreadContext) {
 				else if (g_bVerbose) {
 					myprintf("WorkerThread %d: Socket(%d) Recv completed (%d bytes), Send posted\n",
 						GetCurrentThreadId(), lpPerSocketContext->Socket, dwIoSize);
-				}
-			}*/
+				}*/
+			}
 
 
 			break;
@@ -660,6 +670,121 @@ DWORD WINAPI WorkerThread(LPVOID WorkThreadContext) {
 	} //while
 	return(0);
 }
+
+int DecodeIOContext(PPER_IO_CONTEXT pIOContext) {
+	char* CurrentPtr = pIOContext->InBuffer;
+	unsigned int Size = pIOContext->InBufSize;
+	int Result = SUCCESS;
+	if (Size >= 4) {
+		unsigned int Magic = ntohl(*(unsigned int*)CurrentPtr);
+		if (Magic != MAGIC) {
+			Result = DECODE_FAILURE;
+		}
+	}
+
+	unsigned long TransID = 0;
+	if (Result == SUCCESS) {
+		CurrentPtr += 4; 
+		Size -= 4; 
+		if (Size >= 4) {
+			TransID = ntohl(*(unsigned long*)CurrentPtr);
+		}
+		else {
+			Result = DECODE_FAILURE;
+		}
+	}
+
+	bool IsReq = false; 
+	if (Result == SUCCESS) {
+		CurrentPtr += 4;
+		Size -= 4;
+		if (Size >= 4) {
+			IsReq = ntohl(*(unsigned int*)CurrentPtr) == 0 ? true : false;
+		}
+		else {
+			Result = DECODE_FAILURE;
+		}
+	}
+
+	if (Result == SUCCESS) {
+		CurrentPtr += 4;
+		Size -= 4;
+
+		if (Size >= 4) {
+			unsigned int Command = ntohl(*(unsigned int*)CurrentPtr);
+			unsigned int Capacity = 0;
+			unsigned int NameSize = 0; 
+
+			switch (Command) { // if res and not send message then failure
+			case CreateRoom:
+				CurrentPtr += 4;
+				Size -= 4;
+				if (Size >= 4) {
+					Capacity = ntohl(*(unsigned int*)CurrentPtr);
+					
+				}
+
+				if (Capacity == 0 || Capacity > 10) {
+					Result = DECODE_FAILURE;
+				}
+
+				if (Result == SUCCESS) {
+					CurrentPtr += 4; 
+					Size -= 4; 
+					if (Size >= 4) {
+						NameSize = ntohl(*(unsigned int*)CurrentPtr);
+					}
+
+					if (NameSize == 0 || NameSize > 128) {
+						Result = DECODE_FAILURE;
+					}
+				}
+
+				if (Result == SUCCESS) {
+					CurrentPtr += 4; 
+					Size -= 4;
+					if (Size >= NameSize) {
+						CreateRoomReq* NewRoom = new CreateRoomReq(CurrentPtr, Capacity, TransID);
+						if (NewRoom) {
+							pIOContext->Request = NewRoom;
+							pIOContext->IoContextType.Type.Decoded = true;
+						}
+						else {
+							Result = DECODE_FAILURE;
+						}
+						
+					}
+					else {
+						Result = DECODE_FAILURE;
+					}
+					
+				} 
+				break;
+		
+			case JoinRoom: 
+				break;
+			case SendChat: 
+				break;
+			default: 
+				Result = DECODE_FAILURE;
+
+			}
+
+		}
+		else {
+			Result = DECODE_FAILURE;
+		}
+
+	
+		
+	}
+	return Result;
+}
+
+int ProcessIOContext(PPER_IO_CONTEXT pIOContext) {
+	return 0;
+}
+
 
 //
 //  Allocate a context structures for the socket and add the socket to the IOCP.  

@@ -13,11 +13,15 @@
 
 #include <mswsock.h>
 
+
 #define DEFAULT_PORT  "5001";
 #define MAX_BUFF_SIZE       8192
 #define MAX_WORKER_THREAD   16
 #define KB 1024
 #define MB (1024 * KB)
+#define MAGIC 0x3987abcd
+#define SUCCESS 0
+#define DECODE_FAILURE 1
 
 typedef enum _IO_OPERATION {
     ClientIoAccept,
@@ -41,6 +45,8 @@ typedef struct _PER_IO_CONTEXT {
     union {
         struct {
             bool    TcpMarker : 1;
+            bool Encoded : 1; 
+            bool Decoded : 1;
         } Type;
         unsigned int    Flags;
     } IoContextType;
@@ -51,6 +57,8 @@ typedef struct _PER_IO_CONTEXT {
     unsigned int OutBufSize;
     char* InBuffer;
     char* OutBuffer;
+    MessageHeader* Request;
+    MessageHeader* Response;
 } PER_IO_CONTEXT, * PPER_IO_CONTEXT;
 
 //
@@ -125,5 +133,9 @@ VOID CtxtListAddTo(
 VOID CtxtListDeleteFrom(
     PPER_SOCKET_CONTEXT lpPerSocketContext
 );
+
+int DecodeIOContext(PPER_IO_CONTEXT pIOContext);
+
+int ProcessIOContext(PPER_IO_CONTEXT pIOContext);
 
 

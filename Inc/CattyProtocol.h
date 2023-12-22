@@ -1,7 +1,7 @@
 #pragma once
 #include <string>
 #include <vector>
-#include <pair>
+#include <utility>
 #include <memory>
 #include <unordered_map>
 #include <winsock2.h>
@@ -11,15 +11,14 @@
 typedef unsigned long long UserID;
 typedef unsigned long long RoomID;
 
-std::unordered_map<RoomID, std::shared_ptr<CattyRoom>> AllRooms;
-std::unordered_map<UserID, std::shared_ptr<CattyUser>> AllUsers;
-std::unordered_map<SOCKET, CattyConnection >> AllConnections;
 
 class CattyConnection {
 	SOCKET Sock;
 	sockaddr Addr;
 	int Status; //possible values: active, disconnecting, disconnected
 };
+
+class CattyRoom;
 
 class CattyUser { //destroy when leaving room
 	UserID UID; 
@@ -41,7 +40,7 @@ enum Action {
 	/// 
 	/// User commands
 	///
-	SendMessage = 0,
+	SendChat = 0,
 	JoinRoom, 
 	ExitRoom,
 	ListRoom, 
@@ -57,9 +56,18 @@ enum Action {
 };
 
 class MessageHeader {
-	unsigned long long TransactionID; // generate unique id
+protected: 
+	unsigned long TransactionID; // generate unique id
 	Action Command;
 	bool IsRequest;
+
+public: 
+	MessageHeader(Action Comm, unsigned long TransID, bool IsReq) {
+		Command = Comm; 
+		TransactionID = TransID; 
+		IsRequest = IsReq;
+
+	}
 
 };
 
@@ -118,9 +126,15 @@ class BlockUserRes : MessageHeader {
 	int Status;
 };
 
-class CreateRoomReq : MessageHeader {
+class CreateRoomReq : public MessageHeader {
 	std::string RoomName;
 	unsigned int Capacity;
+
+public : 
+	CreateRoomReq(char* Buf, unsigned int Cap, unsigned long TransID) : MessageHeader(CreateRoom, TransID, true) {
+		Capacity = Cap;
+		RoomName = Buf;
+	}
 };
 
 class CreateRoomRes : MessageHeader {
@@ -143,3 +157,7 @@ class KickUserReq : MessageHeader {
 class KickUserRes : MessageHeader {
 	int Status;
 };
+
+std::unordered_map<RoomID, std::shared_ptr<CattyRoom>> AllRooms;
+std::unordered_map<UserID, std::shared_ptr<CattyUser>> AllUsers;
+std::unordered_map<SOCKET, CattyConnection> AllConnections;
