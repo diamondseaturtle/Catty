@@ -714,6 +714,7 @@ int DecodeIOContext(PPER_IO_CONTEXT pIOContext) {
 			unsigned int Command = ntohl(*(unsigned int*)CurrentPtr);
 			unsigned int Capacity = 0;
 			unsigned int NameSize = 0; 
+			RoomID Destination = 0; //wtf is this cringe
 
 			switch (Command) { // if res and not send message then failure
 			case CreateRoom:
@@ -762,9 +763,48 @@ int DecodeIOContext(PPER_IO_CONTEXT pIOContext) {
 				break;
 		
 			case JoinRoom: 
+				CurrentPtr += 8; 
+				Size -= 8; 
+				
+				if (Size >= 8) {
+					Destination = ntohl(*(RoomID*) CurrentPtr); // the only problem is ntohl being 32 bit thats great
+				}
+
+				if (AllRooms.find(Destination) == AllRooms.end()) { // this is just cringe atp
+					Result = DECODE_FAILURE;
+				}
+
+				if (Result == SUCCESS) {
+					CurrentPtr += 4; 
+					Size -= 4; 
+					if (Size >= 4) {
+						NameSize = ntohl(*(unsigned int*)CurrentPtr); 
+					}
+
+					if (NameSize == 0 || NameSize > 128) {
+						Result = DECODE_FAILURE;
+					}
+				}
+
+				if (Result == SUCCESS) {
+					CurrentPtr += 4; 
+					Size -= 4; 
+					if (Size >= NameSize) {
+						JoinRoomReq* RmJoin = new JoinRoomReq(CurrentPtr, Destination, TransID);
+						if (RmJoin) {
+							pIOContext->Request = RmJoin; 
+							pIOContext->IoContextType.Type.Decoded = true;
+						}
+						else {
+							Result = DECODE_FAILURE;
+						}
+					}
+				}
 				break;
+
 			case SendChat: 
 				break;
+
 			default: 
 				Result = DECODE_FAILURE;
 

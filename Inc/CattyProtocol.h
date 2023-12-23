@@ -80,12 +80,18 @@ class SendMessageRes : MessageHeader {
 	int Status; //0 is ok, 1 is too long, 2 is bogus receiver, 3 is invalid encoding
 };
 
-class JoinRoomReq : MessageHeader {
+class JoinRoomReq : public MessageHeader {
 	RoomID RoomToJoin;
 	std::string UserName;
+
+public: 
+	JoinRoomReq(char* Buf, RoomID Destination, unsigned long TransID) : MessageHeader(JoinRoom, TransID, true){
+		RoomToJoin = Destination; 
+		UserName = Buf;
+	}
 };
 
-class JoinRoomRes : MessageHeader {
+class JoinRoomRes : public MessageHeader {
 	int Status; // 0 is ok, 1 is invalid room, 2 is room full
 	UserID UID;
 };
