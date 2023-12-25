@@ -706,6 +706,10 @@ int DecodeIOContext(PPER_IO_CONTEXT pIOContext) {
 		}
 	}
 
+	if (!IsReq) {
+		Result = DECODE_FAILURE;
+	}
+
 	if (Result == SUCCESS) {
 		CurrentPtr += 4;
 		Size -= 4;
@@ -714,9 +718,10 @@ int DecodeIOContext(PPER_IO_CONTEXT pIOContext) {
 			unsigned int Command = ntohl(*(unsigned int*)CurrentPtr);
 			unsigned int Capacity = 0;
 			unsigned int NameSize = 0; 
-			RoomID Destination = 0; //wtf is this cringe
+			RoomID Destination = 0; 
+			UserID Receiver = 0;
 
-			switch (Command) { // if res and not send message then failure
+			switch (Command) { // if res and not send message then failure?
 			case CreateRoom:
 				CurrentPtr += 4;
 				Size -= 4;
@@ -763,15 +768,11 @@ int DecodeIOContext(PPER_IO_CONTEXT pIOContext) {
 				break;
 		
 			case JoinRoom: 
-				CurrentPtr += 8; 
-				Size -= 8; 
+				CurrentPtr += 4; 
+				Size -= 4; 
 				
-				if (Size >= 8) {
-					Destination = ntohl(*(RoomID*) CurrentPtr); // the only problem is ntohl being 32 bit thats great
-				}
-
-				if (AllRooms.find(Destination) == AllRooms.end()) { // this is just cringe atp
-					Result = DECODE_FAILURE;
+				if (Size >= 4) {
+					Destination = ntohl(*(RoomID*)CurrentPtr);
 				}
 
 				if (Result == SUCCESS) {
@@ -802,7 +803,40 @@ int DecodeIOContext(PPER_IO_CONTEXT pIOContext) {
 				}
 				break;
 
-			case SendChat: 
+			case SendChat:
+				CurrentPtr += 4; 
+				Size -= 4; 
+				if (Size >= 4) {
+					Receiver = ntohl(*(UserID*)CurrentPtr);
+				}
+
+
+				if (Result == SUCCESS) {
+					CurrentPtr += 4; 
+					Size -= 4; 
+					if (Size >= 4) {
+						NameSize = ntohl(*(unsigned int*)CurrentPtr);
+					}
+
+					if (NameSize == 0 || NameSize >= 1000) { //temporary upper limiting 1k chars
+						Result = DECODE_FAILURE;
+					}
+				}
+
+				if (Result == SUCCESS) {
+					CurrentPtr += 4; 
+					Size -= 4; 
+					if (Size >= NameSize) {
+						SendMessageReq* Send = new SendMessageReq(CurrentPtr, Receiver, TransID);
+						if (Send) {
+							pIOContext->Request = Send; 
+							pIOContext->IoContextType.Type.Decoded = true; 
+						}
+						else {
+							Result = DECODE_FAILURE;
+						}
+					}
+				}
 				break;
 
 			default: 

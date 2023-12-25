@@ -8,8 +8,8 @@
 #include <stdio.h>
 #include <windows.h>
 
-typedef unsigned long long UserID;
-typedef unsigned long long RoomID;
+typedef unsigned long  UserID;
+typedef unsigned long  RoomID;
 
 
 class CattyConnection {
@@ -71,9 +71,14 @@ public:
 
 };
 
-class SendMessageReq : MessageHeader {
+class SendMessageReq : public MessageHeader {
 	UserID ReceiverID; // null means send to everyone 
 	std::string MessageBody; // utf8 encoded
+public: 
+	SendMessageReq(char* Buf, UserID Recv, unsigned long TransID) : MessageHeader(SendChat, TransID, true){
+		ReceiverID = Recv; 
+		MessageBody = Buf; 
+	}
 };
 
 class SendMessageRes : MessageHeader {
