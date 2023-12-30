@@ -600,19 +600,8 @@ DWORD WINAPI WorkerThread(LPVOID WorkThreadContext) {
 				if (Result != 0) {
 					CloseClient(lpPerSocketContext, FALSE);
 				}
-				/*nRet = WSASend(lpPerSocketContext->Socket, &lpIOContext->wsabuf, 1,
-					&dwSendNumBytes, dwFlags, &(lpIOContext->Overlapped), NULL);
-				if (nRet == SOCKET_ERROR && (ERROR_IO_PENDING != WSAGetLastError())) {
-					myprintf("WSASend() failed: %d\n", WSAGetLastError());
-					CloseClient(lpPerSocketContext, FALSE);
-				}
-				else if (g_bVerbose) {
-					myprintf("WorkerThread %d: Socket(%d) Recv completed (%d bytes), Send posted\n",
-						GetCurrentThreadId(), lpPerSocketContext->Socket, dwIoSize);
-				}*/
+		
 			}
-
-
 			break;
 
 		/*case ClientIoWrite:
@@ -680,6 +669,9 @@ int DecodeIOContext(PPER_IO_CONTEXT pIOContext) {
 		if (Magic != MAGIC) {
 			Result = DECODE_FAILURE;
 		}
+	}
+	else {
+		Result = DECODE_FAILURE;
 	}
 
 	unsigned long TransID = 0;
@@ -863,7 +855,7 @@ int ProcessIOContext(PPER_IO_CONTEXT pIOContext) {
 
 	if (Result == SUCCESS) {
 		pIOContext->OutBufSize = pIOContext->Response->GetBufSize();
-		pIOContext->OutBuffer = (char*)xmalloc(pIOContext->OutBufSize);
+		pIOContext->OutBuffer = (char*)xmalloc(pIOContext->OutBufSize); //xfree in destruction!! 
 		if (pIOContext->OutBuffer == nullptr) {
 			Result = INSUFFICIENT_RESOURCES;
 		}
@@ -1243,7 +1235,7 @@ bool CreateRoomReq::IsValidReq() {
 
 MessageHeader* CreateRoomReq::Execute() {
 	int Status = SUCCESS;
-	if (AllRooms.find(RoomName) == AllRooms.end()) {
+	if (AllRooms.find(RoomName) != AllRooms.end()) {
 		Status = ROOM_EXISTS_FAILURE;
 	}
 
@@ -1255,5 +1247,46 @@ MessageHeader* CreateRoomReq::Execute() {
 	CreateRoomRes* Response = new CreateRoomRes(Status, TransactionID);
 
 	return Response;
+}
 
+int MessageHeader::Encode(char* OutBuf, unsigned int OutBufSize) {
+	int Result = SUCCESS;
+	char* CurrentPtr = OutBuf; 
+	unsigned int Size = OutBufSize; 
+	if (Size >= 4) {
+		*((unsigned int*) CurrentPtr) = htonl(MAGIC); //syntax lol
+	}
+	else {
+		Result = DECODE_FAILURE;
+	}
+
+	if (Result == SUCCESS) {
+		CurrentPtr += sizeof(MAGIC); 
+		Size -= sizeof(MAGIC); 
+		if (Size >= sizeof(TransactionID)) {
+			*((unsigned long*) CurrentPtr) = htonl(TransactionID); 
+		}
+		else {
+			Result = DECODE_FAILURE;
+		}
+	}
+	return Result;
+
+}
+
+int CreateRoomReq::Encode(char* OutBuf, unsigned int OutBufSize) {
+	int Result = SUCCESS;
+	if (MessageHeader::Encode(OutBuf, OutBufSize) == SUCCESS) {
+		char* CurrentPtr = OutBuf + 16;
+		unsigned int Size = OutBufSize - 16; //risky skipping 
+	}
+	else {
+		Result = ENCODE_FAILURE;
+	}
+
+	return Result;
+
+	
+
+	
 }

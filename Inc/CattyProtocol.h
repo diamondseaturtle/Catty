@@ -94,9 +94,7 @@ public:
 		return 0; //change later
 	}
 
-	virtual int Encode(char* OutBuf, unsigned int OutBufSize) {
-		return ENCODE_FAILURE;
-	}
+	virtual int Encode(char* OutBuf, unsigned int OutBufSize);
 
 
 };
@@ -180,6 +178,8 @@ public :
 	virtual bool IsValidReq();
 
 	virtual MessageHeader* Execute();
+
+	virtual int Encode(char* OutBuf, unsigned int OutBufSize);
 
 
 	
