@@ -867,6 +867,7 @@ int ProcessIOContext(PPER_IO_CONTEXT pIOContext) {
 	}
 
 	if (Result == SUCCESS) {
+		pIOContext->IoContextType.Type.Encoded = true;
 		pIOContext->IOOperation = ClientIoWrite;
 		pIOContext->wsabuf.buf = pIOContext->OutBuffer; 
 		pIOContext->wsabuf.len = pIOContext->OutBufSize;
@@ -1226,6 +1227,8 @@ int myprintf(const char* lpFormat, ...) {
 	return nLen;
 }
 
+//--------------------------------- PROTOCOL LIB FUNCTIONS ---------------------------------------//
+
 bool CreateRoomReq::IsValidReq() {
 	if (Capacity == 0 || Capacity > 10) {
 		return false;
@@ -1254,7 +1257,7 @@ int MessageHeader::Encode(char* OutBuf, unsigned int OutBufSize) {
 	char* CurrentPtr = OutBuf; 
 	unsigned int Size = OutBufSize; 
 	if (Size >= 4) {
-		*((unsigned int*) CurrentPtr) = htonl(MAGIC); //syntax lol
+		*((unsigned int*) CurrentPtr) = htonl(MAGIC); 
 	}
 	else {
 		Result = DECODE_FAILURE;
@@ -1270,6 +1273,28 @@ int MessageHeader::Encode(char* OutBuf, unsigned int OutBufSize) {
 			Result = DECODE_FAILURE;
 		}
 	}
+
+	if (Result == SUCCESS) {
+		CurrentPtr += sizeof(TransactionID); 
+		Size -= sizeof(TransactionID); 
+		if (Size >= sizeof(Command)) { 
+			*((unsigned int*) CurrentPtr) = htonl(Command);
+		}
+		else {
+			Result = DECODE_FAILURE;
+		}
+	}
+
+	if (Result == SUCCESS) {
+		CurrentPtr += sizeof(Command); 
+		Size -= sizeof(Command); 
+		if (Size >= sizeof(IsRequest)) {
+			*((bool*)CurrentPtr) = htonl(IsRequest); 
+		}
+		else {
+			Result = DECODE_FAILURE;
+		}
+	}
 	return Result;
 
 }
@@ -1277,16 +1302,41 @@ int MessageHeader::Encode(char* OutBuf, unsigned int OutBufSize) {
 int CreateRoomReq::Encode(char* OutBuf, unsigned int OutBufSize) {
 	int Result = SUCCESS;
 	if (MessageHeader::Encode(OutBuf, OutBufSize) == SUCCESS) {
-		char* CurrentPtr = OutBuf + 16;
-		unsigned int Size = OutBufSize - 16; //risky skipping 
+		char* CurrentPtr = OutBuf + HEADER_SIZE; // this or return position in super encode
+		unsigned int Size = OutBufSize - HEADER_SIZE; 
+		if (Size >= sizeof(Capacity)) {
+			*((unsigned int*)CurrentPtr) = htonl(Capacity); 
+		}
+		else {
+			Result = ENCODE_FAILURE;
+		}
+
+		if (Result == SUCCESS) {
+			CurrentPtr += sizeof(Capacity); 
+			Size -= sizeof(Capacity); 
+			if (Size >= 4) {
+				*((unsigned int*)CurrentPtr) = htonl(RoomName.size());
+			}
+			else {
+				Result = ENCODE_FAILURE;
+			}
+		}
+
+		if (Result == SUCCESS) {
+			CurrentPtr += RoomName.size(); 
+			Size -= RoomName.size(); 
+			if (Size >= RoomName.size()) { // double check this actually works
+				CurrentPtr = &RoomName[0]; // this is so risky HAHA
+			}
+			else {
+				Result = ENCODE_FAILURE;
+			}
+		}
 	}
 	else {
 		Result = ENCODE_FAILURE;
 	}
 
 	return Result;
-
-	
-
 	
 }

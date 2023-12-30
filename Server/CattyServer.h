@@ -21,7 +21,8 @@
 #define MB (1024 * KB)
 #define MAGIC 0x3987abcd
 
-#define FAILURE_RESPONSE_SIZE 20 //magic number, messageheader,  status
+#define FAILURE_RESPONSE_SIZE 20 //magic number, messageheader, status
+#define HEADER_SIZE 16 //magic, messageheader
 
 typedef enum _IO_OPERATION {
     ClientIoAccept,
