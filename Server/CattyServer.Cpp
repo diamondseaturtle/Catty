@@ -730,9 +730,6 @@ int DecodeIOContext(PPER_IO_CONTEXT pIOContext) {
 					
 				}
 
-				if (Capacity == 0 || Capacity > 10) {
-					Result = DECODE_FAILURE;
-				}
 
 				if (Result == SUCCESS) {
 					CurrentPtr += 4; 
@@ -856,7 +853,54 @@ int DecodeIOContext(PPER_IO_CONTEXT pIOContext) {
 }
 
 int ProcessIOContext(PPER_IO_CONTEXT pIOContext) {
-	return 0;
+	int Result = SUCCESS; 
+	if (pIOContext->Request->IsValidReq()) {
+		pIOContext->Response = pIOContext->Request->Execute();
+		if (pIOContext->Response == nullptr) {
+			Result = INSUFFICIENT_RESOURCES;
+		}
+	}
+
+	if (Result == SUCCESS) {
+		pIOContext->OutBufSize = pIOContext->Response->GetBufSize();
+		pIOContext->OutBuffer = (char*)xmalloc(pIOContext->OutBufSize);
+		if (pIOContext->OutBuffer == nullptr) {
+			Result = INSUFFICIENT_RESOURCES;
+		}
+	}
+
+	if (Result == SUCCESS) {
+		Result = pIOContext->Response->Encode(pIOContext->OutBuffer, pIOContext->OutBufSize); 
+		
+	}
+
+	if (Result == SUCCESS) {
+		pIOContext->IOOperation = ClientIoWrite;
+		pIOContext->wsabuf.buf = pIOContext->OutBuffer; 
+		pIOContext->wsabuf.len = pIOContext->OutBufSize;
+		DWORD dwSendNumBytes = 0;
+		DWORD dwIoSize = 0;
+		int nRet = WSASend(pIOContext->pConnection->Socket, &pIOContext->wsabuf, 1,
+			&dwSendNumBytes, 0, &(pIOContext->Overlapped), NULL);
+		if (nRet == SOCKET_ERROR && (ERROR_IO_PENDING != WSAGetLastError())) {
+			myprintf("WSASend() failed: %d\n", WSAGetLastError());
+			CloseClient(pIOContext->pConnection, FALSE);
+		}
+		else if (g_bVerbose) {
+			myprintf("WorkerThread %d: Socket(%d) Send partially completed (%d bytes), Recv posted\n",
+				GetCurrentThreadId(), pIOContext->pConnection->Socket, dwIoSize);
+		}
+
+	}
+	else {
+		SendGeneralFailureResponse(pIOContext, Result); //scratch buffer
+	}
+	
+	return Result;
+}
+
+int SendGeneralFailureResponse(PPER_IO_CONTEXT pIOContext, int Result) {
+	return 0; //chang elater
 }
 
 
@@ -1188,4 +1232,28 @@ int myprintf(const char* lpFormat, ...) {
 	}
 
 	return nLen;
+}
+
+bool CreateRoomReq::IsValidReq() {
+	if (Capacity == 0 || Capacity > 10) {
+		return false;
+	}
+	return true;
+}
+
+MessageHeader* CreateRoomReq::Execute() {
+	int Status = SUCCESS;
+	if (AllRooms.find(RoomName) == AllRooms.end()) {
+		Status = ROOM_EXISTS_FAILURE;
+	}
+
+	if (Status == SUCCESS) {
+		CattyRoom* Room = new CattyRoom(RoomName, Capacity);
+		AllRooms.emplace(RoomName, std::move(Room));
+	}
+	
+	CreateRoomRes* Response = new CreateRoomRes(Status, TransactionID);
+
+	return Response;
+
 }

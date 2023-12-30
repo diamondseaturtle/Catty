@@ -20,8 +20,8 @@
 #define KB 1024
 #define MB (1024 * KB)
 #define MAGIC 0x3987abcd
-#define SUCCESS 0
-#define DECODE_FAILURE 1
+
+#define FAILURE_RESPONSE_SIZE 20 //messageheader, magic number, status
 
 typedef enum _IO_OPERATION {
     ClientIoAccept,
@@ -57,6 +57,7 @@ typedef struct _PER_IO_CONTEXT {
     unsigned int OutBufSize;
     char* InBuffer;
     char* OutBuffer;
+    char ScratchBuffer[FAILURE_RESPONSE_SIZE];
     MessageHeader* Request;
     MessageHeader* Response;
 } PER_IO_CONTEXT, * PPER_IO_CONTEXT;
@@ -138,4 +139,4 @@ int DecodeIOContext(PPER_IO_CONTEXT pIOContext);
 
 int ProcessIOContext(PPER_IO_CONTEXT pIOContext);
 
-
+int SendGeneralFailureResponse(PPER_IO_CONTEXT pIOContext, int Result);

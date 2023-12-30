@@ -8,6 +8,13 @@
 #include <stdio.h>
 #include <windows.h>
 
+#define SUCCESS 0
+#define DECODE_FAILURE 1
+#define ROOM_EXISTS_FAILURE 2
+#define INSUFFICIENT_RESOURCES 3
+#define ENCODE_FAILURE 4
+
+
 typedef unsigned long  UserID;
 typedef unsigned long  RoomID;
 
@@ -29,10 +36,15 @@ class CattyUser { //destroy when leaving room
 };
 
 class CattyRoom {
-	RoomID RID;
 	std::string RoomName;
 	std::unordered_map<UserID, std::shared_ptr<CattyUser>> UsersInRoom;
 	unsigned int Capacity; 
+
+public: 
+	CattyRoom(std::string Name, int Cap) {
+		RoomName = Name; 
+		Capacity = Cap; 
+	}
 };
 
 
@@ -61,6 +73,7 @@ protected:
 	Action Command;
 	bool IsRequest;
 
+
 public: 
 	MessageHeader(Action Comm, unsigned long TransID, bool IsReq) {
 		Command = Comm; 
@@ -68,6 +81,23 @@ public:
 		IsRequest = IsReq;
 
 	}
+
+	virtual bool IsValidReq() {
+		return false;
+	}
+
+	virtual MessageHeader* Execute() {
+		return nullptr; //def failure
+	}
+
+	virtual int GetBufSize() {
+		return 0; //change later
+	}
+
+	virtual int Encode(char* OutBuf, unsigned int OutBufSize) {
+		return ENCODE_FAILURE;
+	}
+
 
 };
 
@@ -146,11 +176,22 @@ public :
 		Capacity = Cap;
 		RoomName = Buf;
 	}
+
+	virtual bool IsValidReq();
+
+	virtual MessageHeader* Execute();
+
+
+	
 };
 
-class CreateRoomRes : MessageHeader {
+class CreateRoomRes : public MessageHeader {
 	int Status; 
-	RoomID CreatedRoom;
+
+public: 
+	CreateRoomRes(int Stat, unsigned long TransID) : MessageHeader(CreateRoom, TransID, false) {
+		Status = Stat;
+	}
 };
 
 class DeleteRoomReq : MessageHeader {
@@ -169,6 +210,6 @@ class KickUserRes : MessageHeader {
 	int Status;
 };
 
-std::unordered_map<RoomID, std::shared_ptr<CattyRoom>> AllRooms;
+std::unordered_map<std::string, std::shared_ptr<CattyRoom>> AllRooms;
 std::unordered_map<UserID, std::shared_ptr<CattyUser>> AllUsers;
 std::unordered_map<SOCKET, CattyConnection> AllConnections;
