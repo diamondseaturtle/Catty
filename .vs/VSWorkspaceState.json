@@ -1,9 +1,10 @@
 {
   "ExpandedNodes": [
     "",
+    "\\Client",
     "\\Inc",
     "\\Server"
   ],
-  "SelectedNode": "\\Server\\CattyServer.Cpp",
+  "SelectedNode": "\\Client\\IocpClient.Cpp",
   "PreviewInSolutionExplorer": false
 }

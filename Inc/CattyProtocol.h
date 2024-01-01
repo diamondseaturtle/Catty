@@ -13,6 +13,7 @@
 #define ROOM_EXISTS_FAILURE 2
 #define INSUFFICIENT_RESOURCES 3
 #define ENCODE_FAILURE 4
+#define SEND_FAILURE 5
 
 
 typedef unsigned long  UserID;
@@ -179,7 +180,7 @@ public :
 
 	virtual MessageHeader* Execute();
 
-	virtual int Encode(char* OutBuf, unsigned int OutBufSize);
+	
 
 
 	
@@ -192,6 +193,8 @@ public:
 	CreateRoomRes(int Stat, unsigned long TransID) : MessageHeader(CreateRoom, TransID, false) {
 		Status = Stat;
 	}
+
+	virtual int Encode(char* OutBuf, unsigned int OutBufSize);
 };
 
 class DeleteRoomReq : MessageHeader {

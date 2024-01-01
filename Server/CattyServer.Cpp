@@ -1,74 +1,3 @@
-// THIS CODE AND INFORMATION IS PROVIDED "AS IS" WITHOUT WARRANTY OF
-// ANY KIND, EITHER EXPRESSED OR IMPLIED, INCLUDING BUT NOT LIMITED TO
-// THE IMPLIED WARRANTIES OF MERCHANTABILITY AND/OR FITNESS FOR A
-// PARTICULAR PURPOSE.
-//
-// Copyright (C) Microsoft Corporation.  All Rights Reserved.
-//
-// Module:
-//      iocpserver.cpp
-//
-// Abstract:
-//      This program is a Winsock echo server program that uses I/O Completion Ports 
-//      (IOCP) to receive data from and echo data back to a sending client. The server 
-//      program supports multiple clients connecting via TCP/IP and sending arbitrary 
-//      sized data buffers which the server then echoes back to the client.  For 
-//      convenience a simple client program, iocpclient was developed to connect 
-//      and continually send data to the server to stress it.
-//
-//      Direct IOCP support was added to Winsock 2 and is fully implemented on the NT 
-//      platform.  IOCPs provide a model for developing very high performance and very 
-//      scalable server programs.
-//
-//      The basic idea is that this server continuously accepts connection requests from 
-//      a client program.  When this happens, the accepted socket descriptor is added to 
-//      the existing IOCP and an initial receive (WSARecv) is posted on that socket.  When 
-//      the client then sends data on that socket, a completion packet will be delivered 
-//      and handled by one of the server's worker threads.  The worker thread echoes the 
-//      data back to the sender by posting a send (WSASend) containing all the data just 
-//      received.  When sending the data back to the client completes, another completion
-//      packet will be delivered and again handled by one of the server's worker threads.  
-//      Assuming all the data that needed to be sent was actually sent, another receive 
-//      (WSARecv) is once again posted and the scenario repeats itself until the client 
-//      stops sending data.
-//
-//      When using IOCPs it is important to remember that the worker threads must be able
-//      to distinguish between I/O that occurs on multiple handles in the IOCP as well as 
-//      multiple I/O requests initiated on a single handle.  The per handle data 
-//      (PER_SOCKET_CONTEXT) is associated with the handle as the CompletionKey when the 
-//      handle is added to the IOCP using CreateIoCompletionPort.  The per IO operation 
-//      data (PER_IO_CONTEXT) is associated with a specific handle during an I/O 
-//      operation as part of the overlapped structure passed to either WSARecv or 
-//      WSASend.  Please notice that the first member of the PER_IO_CONTEXT structure is 
-//      a WSAOVERLAPPED structure (compatible with the Win32 OVERLAPPED structure).  
-//
-//      When the worker thread unblocks from GetQueuedCompletionStatus, the key 
-//      associated with the handle when the handle was added to the IOCP is returned as 
-//      well as the overlapped structure associated when this particular I/O operation 
-//      was initiated.
-//      
-//      This program cleans up all resources and shuts down when CTRL-C is pressed.  
-//      This will cause the main thread to break out of the accept loop and close all open 
-//      sockets and free all context data.  The worker threads get unblocked by posting  
-//      special I/O packets with a NULL CompletionKey to the IOCP.  The worker 
-//      threads check for a NULL CompletionKey and exits if it encounters one. If CTRL-BRK 
-//      is pressed instead, cleanup process is same as above but instead of exit the process, 
-//      the program loops back to restart the server.
-
-//      Another point worth noting is that the Win32 API CreateThread() does not 
-//      initialize the C Runtime and therefore, C runtime functions such as 
-//      printf() have been avoid or rewritten (see myprintf()) to use just Win32 APIs.
-//
-//  Usage:
-//      Start the server and wait for connections on port 6001
-//          iocpserver -e:6001
-//
-//  Build:
-//      Use the headers and libs from the April98 Platform SDK or later.
-//      Link with ws2_32.lib
-//      
-//
-//
 
 #pragma warning (disable:4127)
 
@@ -1299,42 +1228,17 @@ int MessageHeader::Encode(char* OutBuf, unsigned int OutBufSize) {
 
 }
 
-int CreateRoomReq::Encode(char* OutBuf, unsigned int OutBufSize) {
-	int Result = SUCCESS;
-	if (MessageHeader::Encode(OutBuf, OutBufSize) == SUCCESS) {
+int CreateRoomRes::Encode(char* OutBuf, unsigned int OutBufSize) {
+	int Result = MessageHeader::Encode(OutBuf, OutBufSize);
+	if (Result == SUCCESS) {
 		char* CurrentPtr = OutBuf + HEADER_SIZE; // this or return position in super encode
 		unsigned int Size = OutBufSize - HEADER_SIZE; 
-		if (Size >= sizeof(Capacity)) {
-			*((unsigned int*)CurrentPtr) = htonl(Capacity); 
+		if (Size >= sizeof(Status)) {
+			*((unsigned int*)CurrentPtr) = htonl(Status); 
 		}
 		else {
 			Result = ENCODE_FAILURE;
 		}
-
-		if (Result == SUCCESS) {
-			CurrentPtr += sizeof(Capacity); 
-			Size -= sizeof(Capacity); 
-			if (Size >= 4) {
-				*((unsigned int*)CurrentPtr) = htonl(RoomName.size());
-			}
-			else {
-				Result = ENCODE_FAILURE;
-			}
-		}
-
-		if (Result == SUCCESS) {
-			CurrentPtr += RoomName.size(); 
-			Size -= RoomName.size(); 
-			if (Size >= RoomName.size()) { // double check this actually works
-				CurrentPtr = &RoomName[0]; // this is so risky HAHA
-			}
-			else {
-				Result = ENCODE_FAILURE;
-			}
-		}
-	}
-	else {
-		Result = ENCODE_FAILURE;
 	}
 
 	return Result;
