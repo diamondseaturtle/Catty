@@ -92,7 +92,7 @@ public:
 	}
 
 	virtual int GetBufSize() {
-		return 0; //change later
+		return sizeof(TransactionID) + sizeof(Command) + sizeof(IsRequest);
 	}
 
 	virtual int Encode(char* OutBuf, unsigned int OutBufSize);
@@ -180,6 +180,11 @@ public :
 
 	virtual MessageHeader* Execute();
 
+	//virtual int Encode(char* OutBuf, unsigned int OutBufSize);
+
+	virtual int GetBufSize() {
+		return MessageHeader::GetBufSize() + sizeof(Capacity) + sizeof(unsigned int) + RoomName.size();
+	}
 	
 
 
@@ -195,6 +200,10 @@ public:
 	}
 
 	virtual int Encode(char* OutBuf, unsigned int OutBufSize);
+
+	virtual int GetBufSize() {
+		return MessageHeader::GetBufSize() + sizeof(Status);
+	}
 };
 
 class DeleteRoomReq : MessageHeader {

@@ -5,6 +5,6 @@
     "\\Inc",
     "\\Server"
   ],
-  "SelectedNode": "\\Client\\IocpClient.Cpp",
+  "SelectedNode": "\\Server\\CattyServer.Cpp",
   "PreviewInSolutionExplorer": false
 }
