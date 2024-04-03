@@ -1,2 +1,0 @@
-C:\Users\clair\source\repos\Server\Debug\iocpserver.exe
-C:\Users\clair\Catty\Server\Debug\CattyServer.exe
