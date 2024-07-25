@@ -6,12 +6,12 @@
 
 #include <stdlib.h>
 #include <stdio.h>
-#include <winsock2.h>
-#include <ws2tcpip.h>
-#include <strsafe.h>
+// #include <winsock2.h>
+// #include <ws2tcpip.h>
+// #include <strsafe.h>
 
-#include "..\Inc\CattyProtocol.h"
-#include "..\Inc\Catty.h"
+#include "../Inc/CattyProtocol.h"
+#include "Catty.h"
 
 #define MAXTHREADS 64
 
@@ -23,7 +23,7 @@ typedef struct _OPTIONS {
 	char *port;
 	unsigned int nTotalThreads;
 	int nBufSize;
-	BOOL bVerbose;
+	bool bVerbose;
 } OPTIONS;
 
 typedef struct THREADINFO {
@@ -31,39 +31,39 @@ typedef struct THREADINFO {
 	SOCKET sd;
 } THREADINFO;
 
-static OPTIONS default_options = {"localhost", "5001", 1, 4096, FALSE};
+static OPTIONS default_options = {"localhost", "5001", 1, 4096, false};
 static OPTIONS g_Options;
 static THREADINFO g_ThreadInfo;
-static BOOL g_bEndClient = FALSE;
+static bool g_bEndClient = false;
 static WSAEVENT g_hCleanupEvent[1];
 HANDLE g_hIOCP = INVALID_HANDLE_VALUE;
 CRITICAL_SECTION g_CriticalSection;
 
-static BOOL WINAPI CtrlHandler (DWORD dwEvent);
-static BOOL ValidOptions(char *argv[], int argc);
-static VOID Usage(char *szProgramname, OPTIONS *pOptions);
-static DWORD WINAPI EchoThread(LPVOID lpParameter);
-static BOOL CreateConnectedSocket();
-static BOOL SendBuffer(int nThreadNum, char *outbuf);
-static BOOL RecvBuffer(int nThreadNum, char *inbuf);
+static bool  CtrlHandler (unsigned int dwEvent);
+static bool ValidOptions(char *argv[], int argc);
+static void Usage(char *szProgramname, OPTIONS *pOptions);
+static unsigned int  EchoThread(LPVOID lpParameter);
+static bool CreateConnectedSocket();
+static bool SendBuffer(int nThreadNum, char *outbuf);
+static bool RecvBuffer(int nThreadNum, char *inbuf);
 static int myprintf(const char *lpFormat, ...);
 
-DWORD WINAPI WorkerThread(LPVOID WorkThreadContext) {
+unsigned int  WorkerThread(LPVOID WorkThreadContext) {
 
 	HANDLE hIOCP = (HANDLE)WorkThreadContext;
-	BOOL bSuccess = FALSE;
+	bool bSuccess = false;
 	int nRet = 0;
 	LPWSAOVERLAPPED lpOverlapped = NULL;
 	PPER_SOCKET_CONTEXT lpPerSocketContext = NULL;
 	PPER_IO_CONTEXT lpIOContext = NULL;
 	WSABUF buffRecv;
 	WSABUF buffSend;
-	DWORD dwRecvNumBytes = 0;
-	DWORD dwSendNumBytes = 0;
-	DWORD dwFlags = 0;
-	DWORD dwIoSize = 0;
+	unsigned int dwRecvNumBytes = 0;
+	unsigned int dwSendNumBytes = 0;
+	unsigned int dwFlags = 0;
+	unsigned int dwIoSize = 0;
 
-	while (TRUE) {
+	while (true) {
 
 		//
 		// continually loop to service io completion packets
@@ -98,7 +98,7 @@ DWORD WINAPI WorkerThread(LPVOID WorkThreadContext) {
 			// client connection dropped, continue to service remaining (and possibly 
 			// new) client connections
 			//
-			//CloseClient(lpPerSocketContext, FALSE);
+			//CloseClient(lpPerSocketContext, false);
 			continue;
 		}
 
@@ -135,9 +135,9 @@ int __cdecl main(int argc, char *argv[]) {
 
 	OSVERSIONINFO verInfo = {0};
 	WSADATA WSAData; 
-	DWORD dwThreadId = 0;
-	DWORD dwRet = 0;
-	BOOL bInitError = FALSE;
+	unsigned int dwThreadId = 0;
+	unsigned int dwRet = 0;
+	bool bInitError = false;
 	int nThreadNum[MAXTHREADS];
 	int i = 0;
 	int nRet = 0;
@@ -180,7 +180,7 @@ int __cdecl main(int argc, char *argv[]) {
 	//
 	// be able to gracefully handle CTRL-C and close handles
 	//
-	if( !SetConsoleCtrlHandler (CtrlHandler, TRUE) ) {
+	if( !SetConsoleCtrlHandler (CtrlHandler, true) ) {
 		myprintf("SetConsoleCtrlHandler() failed: %d\n", GetLastError());
 		if( g_hCleanupEvent[0] != WSA_INVALID_EVENT ) {
 			WSACloseEvent(g_hCleanupEvent[0]);
@@ -216,7 +216,7 @@ int __cdecl main(int argc, char *argv[]) {
 				GetLastError());
 		}
 
-		for (DWORD dwCPU = 0; dwCPU < g_Options.nTotalThreads; dwCPU++) {
+		for (unsigned int dwCPU = 0; dwCPU < g_Options.nTotalThreads; dwCPU++) {
 
 			//
 			// Create worker threads to service the overlapped I/O requests.  The decision
@@ -225,7 +225,7 @@ int __cdecl main(int argc, char *argv[]) {
 			// and the worker threads will continue to execute.
 			//
 			HANDLE hThread = INVALID_HANDLE_VALUE;
-			DWORD dwThreadId = 0;
+			unsigned int dwThreadId = 0;
 
 			hThread = CreateThread(NULL, 0, WorkerThread, g_hIOCP, 0, &dwThreadId);
 			if (hThread == NULL) {
@@ -258,7 +258,7 @@ int __cdecl main(int argc, char *argv[]) {
 		//
 		// wait for the threads to exit
 		//
-		dwRet = WaitForMultipleObjects(g_Options.nTotalThreads, g_ThreadInfo.hThread, TRUE, INFINITE);
+		dwRet = WaitForMultipleObjects(g_Options.nTotalThreads, g_ThreadInfo.hThread, true, INFINITE);
 		if( dwRet == WAIT_FAILED )
 			myprintf("WaitForMultipleObject(): %d\n", GetLastError());
 	}
@@ -267,7 +267,7 @@ int __cdecl main(int argc, char *argv[]) {
 		myprintf("GenerateConsoleCtrlEvent() failed: %d\n", GetLastError());
 	};
 
-    if( WSAWaitForMultipleEvents(1, g_hCleanupEvent, TRUE, WSA_INFINITE, FALSE) == WSA_WAIT_FAILED ) {
+    if( WSAWaitForMultipleEvents(1, g_hCleanupEvent, true, WSA_INFINITE, false) == WSA_WAIT_FAILED ) {
 		myprintf("WSAWaitForMultipleEvents() failed: %d\n", WSAGetLastError());
 	};
 
@@ -281,8 +281,8 @@ int __cdecl main(int argc, char *argv[]) {
 	//
 	// Restores default processing of CTRL signals.
 	//
-	SetConsoleCtrlHandler(CtrlHandler, FALSE);
-	SetConsoleCtrlHandler(NULL, FALSE);
+	SetConsoleCtrlHandler(CtrlHandler, false);
+	SetConsoleCtrlHandler(NULL, false);
 
 	return(0);
 }
@@ -301,7 +301,7 @@ PPER_SOCKET_CONTEXT CtxtAllocate(SOCKET sd) {
 		return NULL;
 	}
 
-	lpPerSocketContext = (PPER_SOCKET_CONTEXT)xmalloc(sizeof(PER_SOCKET_CONTEXT));
+	lpPerSocketContext = (PPER_SOCKET_CONTEXT)malloc(sizeof(PER_SOCKET_CONTEXT));
 	if (lpPerSocketContext) {
 		lpPerSocketContext->Socket = sd;
 		lpPerSocketContext->pCtxtBack = NULL;
@@ -316,7 +316,7 @@ PPER_SOCKET_CONTEXT CtxtAllocate(SOCKET sd) {
 	return(lpPerSocketContext);
 }
 
-PPER_SOCKET_CONTEXT UpdateCompletionPort(SOCKET sd, BOOL bAddToList) {
+PPER_SOCKET_CONTEXT UpdateCompletionPort(SOCKET sd, bool bAddToList) {
 
 	PPER_SOCKET_CONTEXT lpPerSocketContext;
 
@@ -329,8 +329,8 @@ PPER_SOCKET_CONTEXT UpdateCompletionPort(SOCKET sd, BOOL bAddToList) {
 	if (g_hIOCP == NULL) {
 		myprintf("CreateIoCompletionPort() failed: %d\n", GetLastError());
 		if (lpPerSocketContext->pIOContext)
-			xfree(lpPerSocketContext->pIOContext);
-		xfree(lpPerSocketContext);
+			free(lpPerSocketContext->pIOContext);
+		free(lpPerSocketContext);
 		return(NULL);
 	}
 
@@ -353,16 +353,16 @@ void ReceiveResponseCallback(PVOID Context) {
 
 int SendReqWaitReply(SOCKET Sock, MessageHeader* Request, MessageHeader* &Response) {
 	int Result = SUCCESS;
-	PPER_SOCKET_CONTEXT lpPerSocketContext = UpdateCompletionPort(Sock, TRUE);
+	PPER_SOCKET_CONTEXT lpPerSocketContext = UpdateCompletionPort(Sock, true);
 	PPER_IO_CONTEXT pIOContext;
 	HANDLE hEvent;
-	hEvent = CreateEvent(NULL, TRUE, FALSE, NULL);
+	hEvent = CreateEvent(NULL, true, false, NULL);
 	if (hEvent == INVALID_HANDLE_VALUE) {
 		Result = INSUFFICIENT_RESOURCES;
 	}
 	
 	if (Result == SUCCESS) {
-		lpPerSocketContext = UpdateCompletionPort(Sock, TRUE);
+		lpPerSocketContext = UpdateCompletionPort(Sock, true);
 		if (lpPerSocketContext == NULL) {
 			Result = INSUFFICIENT_RESOURCES;
 		}
@@ -397,7 +397,7 @@ int SendReqWaitReply(SOCKET Sock, MessageHeader* Request, MessageHeader* &Respon
 }
 
 PPER_IO_CONTEXT AllocIOContext(PPER_SOCKET_CONTEXT Connection) {
-	PPER_IO_CONTEXT pIOContext = (PPER_IO_CONTEXT)xmalloc(sizeof(PER_IO_CONTEXT));
+	PPER_IO_CONTEXT pIOContext = (PPER_IO_CONTEXT)malloc(sizeof(PER_IO_CONTEXT));
 	if (pIOContext) {
 		pIOContext->Overlapped.Internal = 0;
 		pIOContext->Overlapped.InternalHigh = 0;
@@ -426,7 +426,7 @@ PPER_IO_CONTEXT AllocIOContext(PPER_SOCKET_CONTEXT Connection) {
 //     buffer to the server.  Upon receipt of the echo from the server, a
 //     simple check is performed to check the integrity of the transfer.
 //
-static DWORD WINAPI EchoThread(LPVOID lpParameter) {
+static unsigned int  EchoThread(LPVOID lpParameter) {
 
 	char *inbuf  = NULL;
 	char *outbuf = NULL;
@@ -435,8 +435,8 @@ static DWORD WINAPI EchoThread(LPVOID lpParameter) {
 
 	myprintf("Starting thread %d\n", nThreadNum);
 
-    inbuf = (char *)xmalloc(g_Options.nBufSize);
-    outbuf = (char *)xmalloc(g_Options.nBufSize);
+    inbuf = (char *)malloc(g_Options.nBufSize);
+    outbuf = (char *)malloc(g_Options.nBufSize);
 
 	if( (inbuf) && (outbuf)) {
 
@@ -445,7 +445,7 @@ static DWORD WINAPI EchoThread(LPVOID lpParameter) {
 		//
 		FillMemory(outbuf, g_Options.nBufSize, (BYTE)nThreadNum);
 
-		while( TRUE ) {
+		while( true ) {
 
 			//
 			// just continually send and wait for the server to echo the data
@@ -471,20 +471,20 @@ static DWORD WINAPI EchoThread(LPVOID lpParameter) {
 	}
 
 	if( inbuf )
-		xfree(inbuf);
+		free(inbuf);
 	if( outbuf )
-		xfree(outbuf);
+		free(outbuf);
 
-	return(TRUE);
+	return(true);
 }
 
 //
 // Abstract:
 //     Create a socket and connect to the server process.
 //
-static BOOL CreateConnectedSocket() {
+static bool CreateConnectedSocket() {
 
-	BOOL bRet = TRUE;
+	bool bRet = true;
 	int nRet = 0;
 	struct addrinfo hints = {0};
 	struct addrinfo *addr_srv = NULL;
@@ -499,25 +499,25 @@ static BOOL CreateConnectedSocket() {
 
 	if( getaddrinfo(g_Options.szHostname, g_Options.port, &hints, &addr_srv) != 0 ) {
 		myprintf("getaddrinfo() failed with error %d\n", WSAGetLastError());
-		bRet = FALSE;
+		bRet = false;
 	}
 
 	if( addr_srv == NULL ) {
 		myprintf("getaddrinfo() failed to resolve/convert the interface\n");
-		bRet = FALSE;
+		bRet = false;
 	} else {
 		g_ThreadInfo.sd = socket(addr_srv->ai_family, addr_srv->ai_socktype, addr_srv->ai_protocol);
 		if( g_ThreadInfo.sd == INVALID_SOCKET ) {
 			myprintf("socket() failed: %d\n", WSAGetLastError());
-			bRet = FALSE;
+			bRet = false;
 		}
 	}
 
-	if( bRet != FALSE ) {
+	if( bRet != false ) {
 		nRet = connect(g_ThreadInfo.sd, addr_srv->ai_addr, (int) addr_srv->ai_addrlen);
 		if( nRet == SOCKET_ERROR ) {
 			myprintf("connect(thread ) failed: %d\n", WSAGetLastError());
-			bRet = FALSE;
+			bRet = false;
 		} else
 			myprintf("connected(thread)\n");
 
@@ -532,9 +532,9 @@ static BOOL CreateConnectedSocket() {
 //     Send a buffer - keep send'ing until the requested amount of
 //     data has been sent or the socket has been closed or error.
 //
-static BOOL SendBuffer(int nThreadNum, char *outbuf) {
+static bool SendBuffer(int nThreadNum, char *outbuf) {
 
-	BOOL bRet = TRUE;
+	bool bRet = true;
 	char *bufp = outbuf;
 	int nTotalSend = 0;
 	int nSend = 0;
@@ -543,11 +543,11 @@ static BOOL SendBuffer(int nThreadNum, char *outbuf) {
 		nSend = send(g_ThreadInfo.sd, bufp, g_Options.nBufSize - nTotalSend, 0);
 		if( nSend == SOCKET_ERROR ) {
 			myprintf("send(thread=%d) failed: %d\n", nThreadNum, WSAGetLastError());
-			bRet = FALSE;
+			bRet = false;
 			break;
 		} else if( nSend == 0 ) {
 			myprintf("connection closed\n");
-			bRet = FALSE;
+			bRet = false;
 			break;
 		} else {
 			nTotalSend += nSend;
@@ -563,9 +563,9 @@ static BOOL SendBuffer(int nThreadNum, char *outbuf) {
 //     Receive a buffer - keep recv'ing until the requested amount of
 //     data has been received or the socket has been closed or error.
 //
-static BOOL RecvBuffer(int nThreadNum, char *inbuf) {
+static bool RecvBuffer(int nThreadNum, char *inbuf) {
 
-	BOOL bRet = TRUE;
+	bool bRet = true;
 	char *bufp = inbuf;
 	int nTotalRecv = 0;
 	int nRecv = 0;
@@ -574,11 +574,11 @@ static BOOL RecvBuffer(int nThreadNum, char *inbuf) {
 		nRecv = recv(g_ThreadInfo.sd, bufp, g_Options.nBufSize - nTotalRecv, 0);
 		if( nRecv == SOCKET_ERROR ) {
 			myprintf("recv(thread=%d) failed: %d\n", nThreadNum, WSAGetLastError());
-			bRet = FALSE;
+			bRet = false;
 			break;
 		} else if( nRecv == 0 ) {
 			myprintf("connection closed\n");
-			bRet = FALSE;
+			bRet = false;
 			break;
 		} else {
 			nTotalRecv += nRecv;
@@ -593,7 +593,7 @@ static BOOL RecvBuffer(int nThreadNum, char *inbuf) {
 // Abstract:
 //      Verify options passed in and set options structure accordingly.
 //
-static BOOL ValidOptions(char *argv[], int argc) {
+static bool ValidOptions(char *argv[], int argc) {
 
 	g_Options = default_options;
     HRESULT hRet;
@@ -624,35 +624,35 @@ static BOOL ValidOptions(char *argv[], int argc) {
 				break;
 
 			case 'v' :
-				g_Options.bVerbose = TRUE;
+				g_Options.bVerbose = true;
 				break;
 
 			case '?' :
 				Usage(argv[0], &default_options);
-				return(FALSE);
+				return(false);
 				break;
 
 			default:
 				myprintf("  unknown options flag %s\n", argv[i]);
 				Usage(argv[0], &default_options);
-				return(FALSE);
+				return(false);
 				break;
 			}
 		} else {
 			myprintf("  unknown option %s\n", argv[i]);
 			Usage(argv[0], &default_options);
-			return(FALSE);
+			return(false);
 		}
 	}
 
-	return(TRUE);
+	return(true);
 }
 
 //
 // Abstract:
 //      Print out usage table for the program
 //
-static VOID Usage(char *szProgramname, OPTIONS *pOptions) {
+static void Usage(char *szProgramname, OPTIONS *pOptions) {
 
 	myprintf("usage:\n%s [-b:#] [-e:#] [-n:host] [-t:#] [-v]\n",
 			 szProgramname);
@@ -669,10 +669,10 @@ static VOID Usage(char *szProgramname, OPTIONS *pOptions) {
 	return;
 }
 
-static BOOL WINAPI CtrlHandler (DWORD dwEvent) {
+static bool  CtrlHandler (unsigned int dwEvent) {
 
 	int i = 0;
-	DWORD dwRet = 0;
+	unsigned int dwRet = 0;
 
 	switch( dwEvent ) {
 	case CTRL_C_EVENT:
@@ -686,9 +686,9 @@ static BOOL WINAPI CtrlHandler (DWORD dwEvent) {
 		//
 		// Temporarily disables processing of CTRL_C_EVENT signal.
 		//
-		SetConsoleCtrlHandler(NULL, TRUE);
+		SetConsoleCtrlHandler(NULL, true);
 
-		g_bEndClient = TRUE;
+		g_bEndClient = true;
 
 		for( i = 0; i < g_Options.nTotalThreads; i++ ) {
 			if( g_ThreadInfo.sd != INVALID_SOCKET ) {
@@ -724,12 +724,12 @@ static BOOL WINAPI CtrlHandler (DWORD dwEvent) {
 		//
 		// unknown type--better pass it on.
 		//
-		return(FALSE);
+		return(false);
 	}
 
 	WSASetEvent(g_hCleanupEvent[0]);
 
-	return(TRUE);
+	return(true);
 }
 
 static int myprintf (const char *lpFormat, ... ) {

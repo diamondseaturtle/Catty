@@ -1,6 +1,7 @@
 #pragma once
 
-#include <mswsock.h>
+// #include <mswsock.h>
+#include <sys/socket.h> 
 
 
 #define DEFAULT_PORT  "5001";
@@ -22,15 +23,15 @@ typedef enum _IO_OPERATION {
 
 struct _PER_SOCKET_CONTEXT;
 
-typedef void (*IOCompletionCallback) (PVOID Context);
+typedef void (*IOCompletionCallback) (void* Context);
 
 //
 // data to be associated for every I/O operation on a socket
 //
 typedef struct _PER_IO_CONTEXT {
-    WSAOVERLAPPED               Overlapped;
+    // WSAOVERLAPPED               Overlapped;
 
-    WSABUF                      wsabuf;
+    // WSABUF                      wsabuf;
     int                         nTotalBytes;
     int                         nSentBytes;
     IO_OPERATION                IOOperation;
@@ -51,10 +52,10 @@ typedef struct _PER_IO_CONTEXT {
     char* InBuffer;
     char* OutBuffer;
     char ScratchBuffer[FAILURE_RESPONSE_SIZE];
-    MessageHeader* Request;
-    MessageHeader* Response;
+    // MessageHeader* Request;
+    // MessageHeader* Response;
     IOCompletionCallback Callback;
-    PVOID CallbackContext;
+    void* CallbackContext;
 } PER_IO_CONTEXT, * PPER_IO_CONTEXT;
 
 //
@@ -67,7 +68,7 @@ typedef struct _PER_IO_CONTEXT {
 // data to be associated with every socket added to the IOCP
 //
 typedef struct _PER_SOCKET_CONTEXT {
-    SOCKET                      Socket;
+    int                      Socket;
 
     //LPFN_ACCEPTEX               fnAcceptEx;
 
@@ -82,26 +83,26 @@ typedef struct _PER_SOCKET_CONTEXT {
     struct _PER_SOCKET_CONTEXT* pCtxtForward;
 } PER_SOCKET_CONTEXT, * PPER_SOCKET_CONTEXT;
 
-BOOL ValidOptions(int argc, char* argv[]);
+bool ValidOptions(int argc, char* argv[]);
 
-BOOL WINAPI CtrlHandler(
-    DWORD dwEvent
+bool  CtrlHandler(
+    unsigned int dwEvent
 );
 
-//BOOL CreateListenSocket(void);
+//bool CreateListenSocket(void);
 
-/*BOOL CreateAcceptSocket(
-    BOOL fUpdateIOCP
+/*bool CreateAcceptSocket(
+    bool fUpdateIOCP
 );*/
 
-DWORD WINAPI WorkerThread(
-    LPVOID WorkContext
+unsigned int  WorkerThread(
+    void* WorkContext
 );
 
 
 PPER_SOCKET_CONTEXT UpdateCompletionPort(
-    SOCKET s,
-    BOOL bAddToList
+    int s,
+    bool bAddToList
 );
 //
 // bAddToList is FALSE for listening socket, and TRUE for connection sockets.
@@ -114,12 +115,12 @@ PPER_IO_CONTEXT AllocIOContext(PPER_SOCKET_CONTEXT Connection);
 /*
 VOID CloseClient(
     PPER_SOCKET_CONTEXT lpPerSocketContext,
-    BOOL bGraceful
+    bool bGraceful
 );
 */
 
 PPER_SOCKET_CONTEXT CtxtAllocate(
-    SOCKET s
+    int s
 );
 /*
 VOID CtxtListFree(

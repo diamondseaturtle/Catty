@@ -1,12 +1,17 @@
 #pragma once
+#ifndef _CATTYPROTOCOL_H_
+#define _CATTYPROTOCOL_H_
+
 #include <string>
 #include <vector>
 #include <utility>
 #include <memory>
 #include <unordered_map>
-#include <winsock2.h>
+
 #include <stdio.h>
-#include <windows.h>
+#include "../Server/CattyServer.h"
+
+extern ThreadPool pool;
 
 #define SUCCESS 0
 #define DECODE_FAILURE 1
@@ -15,23 +20,26 @@
 #define ENCODE_FAILURE 4
 #define SEND_FAILURE 5
 
-
 typedef unsigned long  UserID;
 typedef unsigned long  RoomID;
 
 
-class CattyConnection {
-	SOCKET Sock;
-	sockaddr Addr;
-	int Status; //possible values: active, disconnecting, disconnected
-};
+// class CattyConnection {
+// public:
+// 	// SOCKET Sock;
+// 	int 	 Sock;
+// 	PPER_SOCKET_CONTEXT Context;
+// 	sockaddr Addr;
+// 	int Status; //possible values: active, disconnecting, disconnected
+// };
 
 class CattyRoom;
 
 class CattyUser { //destroy when leaving room
+public:
 	UserID UID; 
 	std::string UserName;
-	std::shared_ptr<CattyConnection> Connection;
+	PPER_SOCKET_CONTEXT Connection;
 	std::shared_ptr<CattyRoom> CurrentRoom; 
 	unsigned int Level;
 };
@@ -59,6 +67,7 @@ enum Action {
 	ListRoom, 
 	QueryRoom,
 	BlockUser,
+	Message,
 
 	//
 	// Management commands (local only)
@@ -108,10 +117,29 @@ public:
 		ReceiverID = Recv; 
 		MessageBody = Buf; 
 	}
+
+	//virtual int Encode(char* OutBuf, unsigned int OutBufSize);
+
+	virtual MessageHeader* Execute();
+
+	virtual int GetBufSize() {
+		return MessageHeader::GetBufSize() + sizeof(ReceiverID) + sizeof(unsigned int) + MessageBody.length();
+	}
 };
 
 class SendMessageRes : MessageHeader {
 	int Status; //0 is ok, 1 is too long, 2 is bogus receiver, 3 is invalid encoding
+public:
+	SendMessageRes(int stat, unsigned long trans_id) : MessageHeader(SendChat, trans_id, false) {
+		Status = stat;
+	}
+
+	virtual int Encode(char* OutBuf, unsigned int OutBufSize);
+	
+
+	virtual int GetBufSize() {
+		return MessageHeader::GetBufSize() + sizeof(Status);
+	}
 };
 
 class JoinRoomReq : public MessageHeader {
@@ -183,10 +211,8 @@ public :
 	//virtual int Encode(char* OutBuf, unsigned int OutBufSize);
 
 	virtual int GetBufSize() {
-		return MessageHeader::GetBufSize() + sizeof(Capacity) + sizeof(unsigned int) + RoomName.size();
+		return MessageHeader::GetBufSize() + sizeof(Capacity) + sizeof(unsigned int) + RoomName.length();
 	}
-	
-
 
 	
 };
@@ -222,6 +248,11 @@ class KickUserRes : MessageHeader {
 	int Status;
 };
 
-std::unordered_map<std::string, std::shared_ptr<CattyRoom>> AllRooms;
-std::unordered_map<UserID, std::shared_ptr<CattyUser>> AllUsers;
-std::unordered_map<SOCKET, CattyConnection> AllConnections;
+int EncodeMsg(char* out_buf, char* body, unsigned int buf_size, int body_length);
+int SendMsg(char* out_buf, char* body, unsigned int buf_size, int body_length, PPER_SOCKET_CONTEXT connection);
+
+int SendUtil(int fd, unsigned int size, char* buffer);
+
+
+
+#endif
