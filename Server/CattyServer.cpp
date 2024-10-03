@@ -26,6 +26,7 @@
 #include <stdlib.h>
 #include <string.h>
 #include <assert.h>
+#include <iostream>
 
 #include "../Inc/CattyProtocol.h"
 #include "../Inc/ThreadPool.h"
@@ -75,6 +76,7 @@ int main(int argc, char* argv[]) {
 			events = select(fd_max + 1, &read_set, NULL, &exc_set, NULL);
 
 			if (FD_ISSET(fd_listen, &read_set)) {
+				printf("FD SET: Connection\n");
 				struct sockaddr_in client_addr; 
 				socklen_t client_len = sizeof(client_addr); 
 
@@ -95,8 +97,16 @@ int main(int argc, char* argv[]) {
 
 				if (g_bEndServer)
 					break;
+				
+				// A new client connected earlier: Add them to active connections 
+				if (new_ctxt != NULL) {
+					sockets.push_back(new_ctxt);
+					AllConnections[fd_conn] = new_ctxt;
+					printf("client connected on fd %d\n", fd_conn);
+				}
 
 				if (--events <= 0) {
+					printf("Connection: No reads\n");
 					continue;
 				}
 			}
@@ -104,6 +114,7 @@ int main(int argc, char* argv[]) {
 			for (auto& context : sockets) {
 				int fd = context->Socket;
 				if (FD_ISSET(fd, &read_set) && !context->IOActive) {
+					printf("Reading from %d\n", fd);
 					context->IOActive = true;
 					if (context->pIOContext == NULL) {
 						PPER_IO_CONTEXT pIOContext = AllocIOContext(context);
@@ -121,11 +132,7 @@ int main(int argc, char* argv[]) {
 				}
 			}
 
-			// A new client connected earlier: Add them to active connections 
-			if (new_ctxt != NULL) {
-				sockets.push_back(new_ctxt);
-				AllConnections[fd_conn] = new_ctxt;
-			}
+
 		} 
 
 		g_bEndServer = true;
@@ -292,12 +299,12 @@ bool CreateListenSocket(void) {
 	// Disabling the send buffer has less serious repercussions 
 	// than disabling the receive buffer.
 	//
-	nZero = 0;
-	res = setsockopt(fd_listen, SOL_SOCKET, SO_SNDBUF, (char*)&nZero, sizeof(nZero));
-	if (res == SOCKET_ERROR) {
-		fprintf(stderr, "setsockopt(SNDBUF) failed: %d\n");
-		return(false);
-	}
+	// nZero = 0;
+	// res = setsockopt(fd_listen, SOL_SOCKET, SO_SNDBUF, (char*)&nZero, sizeof(nZero));
+	// if (res == SOCKET_ERROR) {
+	// 	fprintf(stderr, "setsockopt(SNDBUF) failed: %d\n");
+	// 	return(false);
+	// }
 
 	freeaddrinfo(addrlocal);
 	return(true);
